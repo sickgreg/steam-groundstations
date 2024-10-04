@@ -19,21 +19,28 @@ lost_packets = 0  # To store the number of lost packets
 best_antennas_rssi = [-105, -105, -105, -105]  # Default values for best antennas RSSI if less than 4
 best_antennas_snr = [-105, -105, -105, -105]  # Default values for best antennas SNR if less than 4
 config = None  # Configuration file object
+udp_socket = None  # To store the UDP socket globally
+udp_ip = None  # To store the UDP IP globally
+udp_port = None  # To store the UDP port globally
+previous_link_health_score_rssi = None
+previous_link_health_score_snr = None
+
+
 
 # Default config values
 DEFAULT_CONFIG = {
     'Settings': {
         'version': VERSION,  # Current version of the script
-        'message_interval': '200',  # Time between sending messages (milliseconds)
+        'message_interval': '100',  # Time between sending messages (milliseconds)
         'use_best_rssi': 'True',  # Option to pick best available RSSI for link health score
-        'min_rssi': '-105',  # Min RSSI range for link health
-        'max_rssi': '-60',  # Max RSSI range for link health
-        'min_snr': '0',  # Min SNR range for link health
-        'max_snr': '30',  # Max SNR range for link health
+        'min_rssi': '-95',  # Min RSSI range for link health
+        'max_rssi': '-45',  # Max RSSI range for link health
+        'min_snr': '8',  # Min SNR range for link health
+        'max_snr': '33',  # Max SNR range for link health
         'host': '127.0.0.1',  # Host address to connect to
         'port': '8003',  # Port to connect to
         'udp_ip': '127.0.0.1',  # UDP IP to send link health data
-        'udp_port': '9000',  # UDP port to send link health data
+        'udp_port': '9999',  # UDP port to send link health data
         'retry_interval': '1',  # Time in seconds to wait before retrying TCP connection on failure
     },
     'Descriptions': {
@@ -102,9 +109,38 @@ def update_version_history(config_file):
     with open(config_file, 'w') as f:
         config.write(f)
 
+def request_keyframe():
+    """
+    Send a special message to request a keyframe
+    """
+    special_message = "special:request_keyframe"
+    num_attempts = 5  # Number of times to send the message
+
+    for attempt in range(num_attempts):
+        send_udp(special_message)  # Call send_udp to send the special message
+        if verbose_mode:
+            print(f"Sent special message: {special_message}, attempt {attempt + 1}/{num_attempts}")
+        time.sleep(0.4)  # Wait before the next attempt
+    
+def drop_gop():
+    """
+    Send a special message to drop the gop
+    """
+    special_message = "special:drop_gop"
+    num_attempts = 5  # Number of times to send the message
+
+    for attempt in range(num_attempts):
+        send_udp(special_message)  # Call send_udp to send the special message
+        if verbose_mode:
+            print(f"Sent special message: {special_message}, attempt {attempt + 1}/{num_attempts}")
+        time.sleep(0.1)  # Wait before the next attempt
+
+
 def calculate_link_health(video_rx):
     global recovered_packets, lost_packets, link_health_score_rssi, link_health_score_snr, best_antennas_rssi, best_antennas_snr
-    
+    global previous_link_health_score_rssi, previous_link_health_score_snr
+
+
     try:
         # Get configuration settings
         message_interval = int(config['Settings']['message_interval'])
@@ -124,6 +160,12 @@ def calculate_link_health(video_rx):
         # Get lost packet stats from the 'packets' field
         lost = packets.get('lost', [0, 0])
         lost_packets = lost[0]  # Update the global lost_packets
+        
+        # Check lost_packets and send special message if condition is met
+        if 0 < lost_packets < 10:
+            request_keyframe()  # Send request_keyframe message
+            #drop_gop() # Send drop_gop message
+           
         
         # Get antenna stats
         rx_ant_stats = video_rx.get('rx_ant_stats', {})
@@ -185,9 +227,21 @@ def calculate_link_health(video_rx):
             # Linear interpolation between min_snr and max_snr mapped to 1000 and 2000
             link_health_score_snr = 1000 + ((avg_best_snr - min_snr) / (max_snr - min_snr)) * 1000
         
+        # Implement hysteresis logic
+        rssi_change = abs(link_health_score_rssi - previous_link_health_score_rssi) / previous_link_health_score_rssi if previous_link_health_score_rssi else 1
+        snr_change = abs(link_health_score_snr - previous_link_health_score_snr) / previous_link_health_score_snr if previous_link_health_score_snr else 1
+
+        if (rssi_change > 0.15) or (link_health_score_rssi > previous_link_health_score_rssi):
+            previous_link_health_score_rssi = link_health_score_rssi
+
+        if (snr_change > 0.15) or (link_health_score_snr > previous_link_health_score_snr):
+            previous_link_health_score_snr = link_health_score_snr
+        
+        
         # Round the health scores to the nearest integer
-        link_health_score_rssi = round(link_health_score_rssi)
-        link_health_score_snr = round(link_health_score_snr)
+        link_health_score_rssi = round(previous_link_health_score_rssi)
+        link_health_score_snr = round(previous_link_health_score_snr)
+
         
         if verbose_mode:
             print(f"Calculated Health Score RSSI: {link_health_score_rssi}, SNR: {link_health_score_snr}, Recovered: {recovered_packets}, Lost: {lost_packets}, Best Antennas RSSI: {best_antennas_rssi}, Best Antennas SNR: {best_antennas_snr}")
@@ -199,39 +253,52 @@ def calculate_link_health(video_rx):
             print(f"Error calculating link health: {e}, video_rx data: {video_rx}")
         return 1000, 1000  # Return worst-case score if something goes wrong
 
-def send_udp(udp_socket, udp_ip, udp_port):
+def send_udp(message):
     """
-    Sends the link health score via UDP every N milliseconds, based on config settings.
+    Adds message length to the start and sends message on provided port
     """
-    print("send_udp function has started")  # Debug statement to confirm function start
-    message_interval = int(config['Settings']['message_interval']) / 1000  # Convert to seconds
+    if verbose_mode:
+        print("send_udp function has started")  # Debug statement to confirm function start
+            
+    # Prepend the size of the message as a 4-byte unsigned integer
+    message_bytes = message.encode('utf-8')
+    message_size = struct.pack('!I', len(message_bytes))  # Use network byte order (big-endian)
 
+    # Full message with size prefix
+    full_message = message_size + message_bytes
+    
+    if verbose_mode:
+        print("Preparing UDP message to be sent")  # Debug statement
+    
+    # Send the message
+    try:
+        udp_socket.sendto(full_message, (udp_ip, udp_port))
+        if verbose_mode:
+            print(f"UDP Message Sent: {message} (size: {len(message_bytes)} bytes)")
+    except Exception as e:
+        if verbose_mode:
+            print(f"Error sending UDP data: {e}")
+
+def generate_package():
+    """
+    Generate, at interval, string with all the variables
+    """
+    message_interval = int(config['Settings']['message_interval']) / 1000  # Convert to seconds
+    
     while True:
         timestamp = int(time.time())  # Get epoch time in seconds since 1970
         # Include best antennas in the message
         message = f"{timestamp}:{link_health_score_rssi}:{link_health_score_snr}:{recovered_packets}:{lost_packets}:{best_antennas_rssi[0]}:{best_antennas_rssi[1]}:{best_antennas_rssi[2]}:{best_antennas_rssi[3]}"
-        
-        # Prepend the size of the message as a 4-byte unsigned integer
-        message_bytes = message.encode('utf-8')
-        message_size = struct.pack('!I', len(message_bytes))  # Use network byte order (big-endian)
-
-        # Full message with size prefix
-        full_message = message_size + message_bytes
-
-        print("Preparing UDP message to be sent")  # Debug statement
-        # Send the message
-        try:
-            udp_socket.sendto(full_message, (udp_ip, udp_port))
-            if verbose_mode:
-                print(f"UDP Message Sent: {message} (size: {len(message_bytes)} bytes)")
-        except Exception as e:
-            if verbose_mode:
-                print(f"Error sending UDP data: {e}")
-
+                    
+        # Pass the message to send_udp function
+        send_udp(message)
+                
         time.sleep(message_interval)  # Send at the specified interval
+
 
 def connect_and_receive_msgpack():
     global results, link_health_score_rssi, link_health_score_snr, recovered_packets, lost_packets, best_antennas_rssi, best_antennas_snr
+    global udp_socket, udp_ip, udp_port  # Make the UDP socket, IP, and port available globally
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # Create UDP socket
 
     # Get host, port, and UDP destination from the config
@@ -253,7 +320,7 @@ def connect_and_receive_msgpack():
                     print(f"Connected to {host}:{port}")
 
                 # Start UDP sending in a separate thread
-                udp_thread = threading.Thread(target=send_udp, args=(udp_socket, udp_ip, udp_port), daemon=True)
+                udp_thread = threading.Thread(target=generate_package, daemon=True)  # Change here to call generate_package
                 udp_thread.start()
 
                 while True:
