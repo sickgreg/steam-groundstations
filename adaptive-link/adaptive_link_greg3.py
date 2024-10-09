@@ -31,16 +31,16 @@ previous_link_health_score_snr = None
 DEFAULT_CONFIG = {
     'Settings': {
         'version': VERSION,  # Current version of the script
-        'message_interval': '75',  # Time between sending messages (milliseconds)
+        'message_interval': '200',  # Time between sending messages (milliseconds)
         'use_best_rssi': 'True',  # Option to pick best available RSSI for link health score
-        'min_rssi': '-85',  # Min RSSI range for link health
-        'max_rssi': '-45',  # Max RSSI range for link health
-        'min_snr': '10',  # Min SNR range for link health
+        'min_rssi': '-105',  # Min RSSI range for link health
+        'max_rssi': '-60',  # Max RSSI range for link health
+        'min_snr': '0',  # Min SNR range for link health
         'max_snr': '30',  # Max SNR range for link health
         'host': '127.0.0.1',  # Host address to connect to
         'port': '8003',  # Port to connect to
         'udp_ip': '127.0.0.1',  # UDP IP to send link health data
-        'udp_port': '9998',  # UDP port to send link health data
+        'udp_port': '9000',  # UDP port to send link health data
         'retry_interval': '1',  # Time in seconds to wait before retrying TCP connection on failure
     },
     'Descriptions': {
@@ -120,7 +120,7 @@ def request_keyframe():
         send_udp(special_message)  # Call send_udp to send the special message
         if verbose_mode:
             print(f"Sent special message: {special_message}, attempt {attempt + 1}/{num_attempts}")
-        time.sleep(0.1)  # Wait before the next attempt
+        time.sleep(0.2)  # Wait before the next attempt
     
 def drop_gop():
     """
@@ -133,7 +133,7 @@ def drop_gop():
         send_udp(special_message)  # Call send_udp to send the special message
         if verbose_mode:
             print(f"Sent special message: {special_message}, attempt {attempt + 1}/{num_attempts}")
-        time.sleep(0.1)  # Wait before the next attempt
+        time.sleep(0.2)  # Wait before the next attempt
 
 
 def calculate_link_health(video_rx):
@@ -162,8 +162,8 @@ def calculate_link_health(video_rx):
         lost_packets = lost[0]  # Update the global lost_packets
         
         # Check lost_packets and send special message if condition is met
-        if 0 < lost_packets < 10:
-            request_keyframe()  # Send request_keyframe message
+        #if 0 < lost_packets < 10:
+        #    request_keyframe()  # Send request_keyframe message
             #drop_gop() # Send drop_gop message
            
         
@@ -228,19 +228,19 @@ def calculate_link_health(video_rx):
             link_health_score_snr = 1000 + ((avg_best_snr - min_snr) / (max_snr - min_snr)) * 1000
         
         # Implement hysteresis logic
-        rssi_change = abs(link_health_score_rssi - previous_link_health_score_rssi) / previous_link_health_score_rssi if previous_link_health_score_rssi else 1
-        snr_change = abs(link_health_score_snr - previous_link_health_score_snr) / previous_link_health_score_snr if previous_link_health_score_snr else 1
+        #rssi_change = abs(link_health_score_rssi - previous_link_health_score_rssi) / previous_link_health_score_rssi if previous_link_health_score_rssi else 1
+        #snr_change = abs(link_health_score_snr - previous_link_health_score_snr) / previous_link_health_score_snr if previous_link_health_score_snr else 1
 
-        if (rssi_change > 0.15) or (link_health_score_rssi > previous_link_health_score_rssi):
-            previous_link_health_score_rssi = link_health_score_rssi
+        #if (rssi_change > 0.15) or (link_health_score_rssi > previous_link_health_score_rssi):
+        #    previous_link_health_score_rssi = link_health_score_rssi
 
-        if (snr_change > 0.15) or (link_health_score_snr > previous_link_health_score_snr):
-            previous_link_health_score_snr = link_health_score_snr
+        #if (snr_change > 0.15) or (link_health_score_snr > previous_link_health_score_snr):
+        #    previous_link_health_score_snr = link_health_score_snr
         
         
         # Round the health scores to the nearest integer
-        link_health_score_rssi = round(previous_link_health_score_rssi)
-        link_health_score_snr = round(previous_link_health_score_snr)
+        link_health_score_rssi = round(link_health_score_rssi)
+        link_health_score_snr = round(link_health_score_snr)
 
         
         if verbose_mode:
