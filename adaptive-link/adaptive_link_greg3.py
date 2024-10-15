@@ -31,16 +31,16 @@ previous_link_health_score_snr = None
 DEFAULT_CONFIG = {
     'Settings': {
         'version': VERSION,  # Current version of the script
-        'message_interval': '200',  # Time between sending messages (milliseconds)
+        'message_interval': '100',  # Time between sending messages (milliseconds)
         'use_best_rssi': 'True',  # Option to pick best available RSSI for link health score
         'min_rssi': '-105',  # Min RSSI range for link health
         'max_rssi': '-60',  # Max RSSI range for link health
-        'min_snr': '0',  # Min SNR range for link health
-        'max_snr': '30',  # Max SNR range for link health
+        'min_snr': '12',  # Min SNR range for link health
+        'max_snr': '28',  # Max SNR range for link health
         'host': '127.0.0.1',  # Host address to connect to
         'port': '8003',  # Port to connect to
-        'udp_ip': '127.0.0.1',  # UDP IP to send link health data
-        'udp_port': '9000',  # UDP port to send link health data
+        'udp_ip': '10.5.0.10',  # UDP IP to send link health data
+        'udp_port': '9999',  # UDP port to send link health data
         'retry_interval': '1',  # Time in seconds to wait before retrying TCP connection on failure
     },
     'Descriptions': {
