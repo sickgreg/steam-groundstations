@@ -33,8 +33,8 @@ DEFAULT_CONFIG = {
         'version': VERSION,  # Current version of the script
         'message_interval': '100',  # Time between sending messages (milliseconds)
         'use_best_rssi': 'True',  # Option to pick best available RSSI for link health score
-        'min_rssi': '-105',  # Min RSSI range for link health
-        'max_rssi': '-60',  # Max RSSI range for link health
+        'min_rssi': '-85',  # Min RSSI range for link health
+        'max_rssi': '-50',  # Max RSSI range for link health
         'min_snr': '12',  # Min SNR range for link health
         'max_snr': '28',  # Max SNR range for link health
         'host': '127.0.0.1',  # Host address to connect to
