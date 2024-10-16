@@ -120,7 +120,7 @@ def request_keyframe():
         send_udp(special_message)  # Call send_udp to send the special message
         if verbose_mode:
             print(f"Sent special message: {special_message}, attempt {attempt + 1}/{num_attempts}")
-        time.sleep(0.2)  # Wait before the next attempt
+        time.sleep(0.025)  # Wait before the next attempt
     
 def drop_gop():
     """
@@ -218,7 +218,11 @@ def calculate_link_health(video_rx):
             link_health_score_rssi = 1000 + ((rssi_to_use - min_rssi) / (max_rssi - min_rssi)) * 1000
 
         # Calculate link health score for SNR
-        avg_best_snr = sum(best_antennas_snr) / 4
+
+        if use_best_rssi:
+            avg_best_snr = best_antennas_snr[0]  # Use the best snr
+        else:
+            avg_best_snr = sum(best_antennas_snr) / 4
         if avg_best_snr > max_snr:
             link_health_score_snr = 2000  # Max health when SNR is better than max_snr
         elif avg_best_snr < min_snr:
